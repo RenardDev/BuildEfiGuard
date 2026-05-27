@@ -29,7 +29,6 @@ jobs:
         with:
           clean: false
 
-      # --- Sources ---
       - name: Clone EDK II
         shell: powershell
         run: |
@@ -60,7 +59,6 @@ jobs:
           }
           "VISUALUEFI_DIR=$dst" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-      # --- Tooling: BaseTools, Python deps, NASM/iASL/LLVM ---
       - name: Clone Prebuilt BaseTools (Win32)
         shell: powershell
         run: |
@@ -215,6 +213,45 @@ jobs:
         shell: cmd
         run: |
           "%MSBUILD_EXE%" "%VISUALUEFI_DIR%\EDK-II\EDK-II.sln" /m /p:Configuration=Release /p:Platform=x64
+
+      - name: Retarget EfiGuard MSVC projects to v143
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $projects = @(
+            "$env:PKG_DIR\EfiGuardDxe\EfiGuardDxe.vcxproj",
+            "$env:PKG_DIR\Application\EfiDSEFix\src\EfiDSEFix.vcxproj"
+          )
+
+          foreach ($proj in $projects) {
+            if (-not (Test-Path $proj)) {
+              throw "Missing project: $proj"
+            }
+
+            Write-Host "Retargeting $proj -> PlatformToolset v143"
+
+            [xml]$xml = Get-Content -LiteralPath $proj
+
+            $nodes = $xml.Project.PropertyGroup.PlatformToolset
+            if ($nodes) {
+              foreach ($node in $nodes) {
+                $node.InnerText = 'v143'
+              }
+            } else {
+              $pg = $xml.Project.PropertyGroup | Select-Object -First 1
+              if (-not $pg) {
+                $pg = $xml.CreateElement('PropertyGroup', $xml.Project.NamespaceURI)
+                $xml.Project.AppendChild($pg) | Out-Null
+              }
+
+              $toolset = $xml.CreateElement('PlatformToolset', $xml.Project.NamespaceURI)
+              $toolset.InnerText = 'v143'
+              $pg.AppendChild($toolset) | Out-Null
+            }
+
+            $xml.Save($proj)
+          }
 
       - name: Build EfiGuardDxe + EfiDSEFix (MSBuild, Release x64)
         shell: cmd
