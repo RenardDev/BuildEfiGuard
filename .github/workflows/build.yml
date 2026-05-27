@@ -214,50 +214,11 @@ jobs:
         run: |
           "%MSBUILD_EXE%" "%VISUALUEFI_DIR%\EDK-II\EDK-II.sln" /m /p:Configuration=Release /p:Platform=x64
 
-      - name: Retarget EfiGuard MSVC projects to v143
-        shell: powershell
-        run: |
-          $ErrorActionPreference = 'Stop'
-
-          $projects = @(
-            "$env:PKG_DIR\EfiGuardDxe\EfiGuardDxe.vcxproj",
-            "$env:PKG_DIR\Application\EfiDSEFix\src\EfiDSEFix.vcxproj"
-          )
-
-          foreach ($proj in $projects) {
-            if (-not (Test-Path $proj)) {
-              throw "Missing project: $proj"
-            }
-
-            Write-Host "Retargeting $proj -> PlatformToolset v143"
-
-            [xml]$xml = Get-Content -LiteralPath $proj
-
-            $nodes = $xml.Project.PropertyGroup.PlatformToolset
-            if ($nodes) {
-              foreach ($node in $nodes) {
-                $node.InnerText = 'v143'
-              }
-            } else {
-              $pg = $xml.Project.PropertyGroup | Select-Object -First 1
-              if (-not $pg) {
-                $pg = $xml.CreateElement('PropertyGroup', $xml.Project.NamespaceURI)
-                $xml.Project.AppendChild($pg) | Out-Null
-              }
-
-              $toolset = $xml.CreateElement('PlatformToolset', $xml.Project.NamespaceURI)
-              $toolset.InnerText = 'v143'
-              $pg.AppendChild($toolset) | Out-Null
-            }
-
-            $xml.Save($proj)
-          }
-
       - name: Build EfiGuardDxe + EfiDSEFix (MSBuild, Release x64)
         shell: cmd
         run: |
-          "%MSBUILD_EXE%" "%PKG_DIR%\EfiGuardDxe\EfiGuardDxe.vcxproj" /m /p:Configuration=Release /p:Platform=x64 "/p:SolutionDir=%PKG_DIR%/"
-          "%MSBUILD_EXE%" "%PKG_DIR%\Application\EfiDSEFix\src\EfiDSEFix.vcxproj" /m /p:Configuration=Release /p:Platform=x64 "/p:SolutionDir=%PKG_DIR%/"
+          "%MSBUILD_EXE%" "%PKG_DIR%\EfiGuardDxe\EfiGuardDxe.vcxproj" /m /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143 "/p:SolutionDir=%PKG_DIR%/"
+          "%MSBUILD_EXE%" "%PKG_DIR%\Application\EfiDSEFix\src\EfiDSEFix.vcxproj" /m /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143 "/p:SolutionDir=%PKG_DIR%/"
 
       - name: Stage Artifacts (flat root)
         shell: powershell
